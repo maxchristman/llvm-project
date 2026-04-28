@@ -181,6 +181,7 @@ MODULE_PASS("tysan", TypeSanitizerPass())
 MODULE_PASS("verify", VerifierPass())
 MODULE_PASS("view-callgraph", CallGraphViewerPass())
 MODULE_PASS("wholeprogramdevirt", WholeProgramDevirtPass())
+MODULE_PASS("secrettaint", SecretTaintPass())
 #undef MODULE_PASS
 
 #ifndef MODULE_PASS_WITH_PARAMS
@@ -593,10 +594,10 @@ FUNCTION_PASS_WITH_PARAMS(
     [](bool PostInlining) { return EntryExitInstrumenterPass(PostInlining); },
     parseEntryExitInstrumenterPassOptions, "post-inline")
 FUNCTION_PASS_WITH_PARAMS(
-    "func-properties-stats", 
+    "func-properties-stats",
     "FunctionPropertiesStatisticsPass",
-    [](bool IsPreOptimizations) { 
-      return FunctionPropertiesStatisticsPass(IsPreOptimizations); 
+    [](bool IsPreOptimizations) {
+      return FunctionPropertiesStatisticsPass(IsPreOptimizations);
     },
     parseFunctionPropertiesStatisticsOptions, "pre-opt")
 FUNCTION_PASS_WITH_PARAMS(
@@ -624,8 +625,8 @@ FUNCTION_PASS_WITH_PARAMS(
     "no-verify-fixpoint;verify-fixpoint;max-iterations=N")
 FUNCTION_PASS_WITH_PARAMS(
     "instcount", "InstCountPass",
-    [](bool IsPreOptimizations) { 
-      return InstCountPass(IsPreOptimizations); 
+    [](bool IsPreOptimizations) {
+      return InstCountPass(IsPreOptimizations);
     },
     parseInstCountOptions, "pre-opt")
 FUNCTION_PASS_WITH_PARAMS(

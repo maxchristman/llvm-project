@@ -390,6 +390,8 @@
 #include "llvm/Transforms/Vectorize/VectorCombine.h"
 #include <optional>
 
+#include "llvm/Transforms/Utils/SecretTaint.h"
+
 using namespace llvm;
 
 cl::opt<bool> llvm::PrintPipelinePasses(
