@@ -392,6 +392,7 @@
 
 #include "llvm/Transforms/Utils/SecretTaint.h"
 #include "llvm/Transforms/Utils/SecretBranchElim.h"
+#include "llvm/Transforms/Utils/SecretRegClass.h"
 
 using namespace llvm;
 

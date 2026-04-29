@@ -326,6 +326,13 @@ def YGPR : RegisterClass<"RISCV", [YLenVT], 64,
   let DecoderMethod = "DecodeSimpleRegisterClass<RISCV::X0_Y, 32, /*RVELimit=*/16>";
 }
 
+// Mojo-V secret registers: x16-x31 only. Secret values must live here so
+// the hardware can apply transparent encryption on stores and loads.
+// Allocation order: caller-saved first (a6-a7, t3-t6), then callee-saved (s2-s11).
+def SecretGPR : GPRRegisterClass<(add (sequence "X%u", 16, 17),
+                                      (sequence "X%u", 28, 31),
+                                      (sequence "X%u", 18, 27))>;
+
 def GPRX0 : GPRRegisterClass<(add X0)>;
 
 def GPRX1 : GPRRegisterClass<(add X1)> {

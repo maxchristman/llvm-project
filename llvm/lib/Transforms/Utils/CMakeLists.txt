@@ -96,6 +96,7 @@ add_llvm_component_library(LLVMTransformUtils
   VNCoercion.cpp
   SecretTaint.cpp
   SecretBranchElim.cpp
+  SecretRegClass.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/Transforms

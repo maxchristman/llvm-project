@@ -2132,6 +2132,17 @@ void RISCVDAGToDAGISel::Select(SDNode *Node) {
       // By default we do not custom select any intrinsic.
     default:
       break;
+    case Intrinsic::riscv_mojov_secret: {
+      // Force the result into SecretGPR (x16-x31) so the register allocator
+      // places it in the hardware-encrypted register range.
+      SDValue Src = Node->getOperand(1);
+      SDValue RC = CurDAG->getTargetConstant(RISCV::SecretGPRRegClassID,
+                                             DL, XLenVT);
+      SDNode *NewNode = CurDAG->getMachineNode(
+          TargetOpcode::COPY_TO_REGCLASS, DL, VT, Src, RC);
+      ReplaceNode(Node, NewNode);
+      return;
+    }
     case Intrinsic::riscv_vmsgeu:
     case Intrinsic::riscv_vmsge: {
       SDValue Src1 = Node->getOperand(1);

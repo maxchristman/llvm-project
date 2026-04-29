@@ -183,6 +183,7 @@ MODULE_PASS("view-callgraph", CallGraphViewerPass())
 MODULE_PASS("wholeprogramdevirt", WholeProgramDevirtPass())
 MODULE_PASS("secrettaint", SecretTaintPass())
 MODULE_PASS("secretbranchelim", SecretBranchElimPass())
+MODULE_PASS("secretregclass", SecretRegClassPass())
 #undef MODULE_PASS
 
 #ifndef MODULE_PASS_WITH_PARAMS
