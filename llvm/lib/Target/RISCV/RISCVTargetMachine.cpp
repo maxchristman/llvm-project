@@ -625,6 +625,10 @@ void RISCVPassConfig::addMachineSSAOptimization() {
 }
 
 void RISCVPassConfig::addPreRegAlloc() {
+  // Propagate SecretGPR register class constraints: any instruction that reads
+  // from a SecretGPR virtual register must also write its result to SecretGPR.
+  addPass(createRISCVSecretConstraintPass());
+
   addPass(createRISCVPreRAExpandPseudoPass());
   if (TM->getOptLevel() != CodeGenOptLevel::None) {
     addPass(createRISCVMergeBaseOffsetOptPass());
