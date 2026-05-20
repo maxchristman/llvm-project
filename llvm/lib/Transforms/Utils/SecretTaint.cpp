@@ -197,9 +197,14 @@ PreservedAnalyses SecretTaintPass::run(Module &M, ModuleAnalysisManager &AM) {
                 }
             }
 
+            SmallVector<bool, 8> OldSecretParams = Summaries[F].secretParams;
             bool OldReturnsSecret = Summaries[F].returnsSecret;
             SecretFuncSummary NewSummary = analyzeFunction(*F, SecretArgs, SecretMD);
             Summaries[F] = std::move(NewSummary);
+
+            // If secretParams changed, a callee will need reanalysis next round.
+            if (Summaries[F].secretParams != OldSecretParams)
+                ModuleChanged = true;
 
             // If return taint status changed, taint call sites in callers
             if (Summaries[F].returnsSecret && !OldReturnsSecret) {
@@ -212,6 +217,25 @@ PreservedAnalyses SecretTaintPass::run(Module &M, ModuleAnalysisManager &AM) {
                                     CI->setMetadata("secret", SecretMD);
                                     errs() << "[SecretTaint] Call result tainted: " << *CI << "\n";
                                 }
+            }
+
+            // If any call in F now passes a secret arg to a callee whose summary
+            // doesn't yet reflect that parameter as secret, trigger another round
+            // so the callee is reanalyzed with the updated argument information.
+            for (auto &BB2 : *F) {
+                for (auto &I2 : BB2) {
+                    auto *CI2 = dyn_cast<CallInst>(&I2);
+                    if (!CI2) continue;
+                    Function *Callee2 = CI2->getCalledFunction();
+                    if (!Callee2 || Callee2->isDeclaration()) continue;
+                    auto &CSum = Summaries[Callee2];
+                    for (unsigned i = 0; i < CI2->arg_size() && i < Callee2->arg_size(); ++i) {
+                        if (isSecretInst(CI2->getArgOperand(i)) &&
+                                (CSum.secretParams.size() <= i || !CSum.secretParams[i])) {
+                            ModuleChanged = true;
+                        }
+                    }
+                }
             }
         }
     }
