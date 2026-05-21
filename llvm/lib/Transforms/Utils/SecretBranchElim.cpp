@@ -10,6 +10,13 @@
 
 using namespace llvm;
 
+// Returns true if V is an Instruction carrying !secret metadata.
+static bool isSecretValue(Value *V) {
+    if (auto *I = dyn_cast<Instruction>(V))
+        return I->getMetadata("secret") != nullptr;
+    return false;
+}
+
 // A branch is a secret branch if the taint pass tagged it with !secret.
 static bool isSecretBranch(CondBrInst *BI) {
     return BI->getMetadata("secret") != nullptr;
@@ -50,6 +57,26 @@ static bool checkSpeculatable(BasicBlock *BB) {
         if (!isSafeToSpeculativelyExecute(&I)) return false;
     }
     return true;
+}
+
+static void reportMemoryError(Instruction *I, Function &F) {
+    std::string Msg;
+    raw_string_ostream OS(Msg);
+    OS << "secret-dependent memory address in '" << F.getName()
+       << "' leaks via cache timing";
+    if (DebugLoc DL = I->getDebugLoc())
+        OS << " (" << DL->getFilename() << ":" << DL->getLine() << ")";
+    F.getContext().emitError(Msg);
+}
+
+static void reportIndirectControlFlowError(Instruction *I, Function &F) {
+    std::string Msg;
+    raw_string_ostream OS(Msg);
+    OS << "secret-dependent indirect control flow in '" << F.getName()
+       << "' is not transformable";
+    if (DebugLoc DL = I->getDebugLoc())
+        OS << " (" << DL->getFilename() << ":" << DL->getLine() << ")";
+    F.getContext().emitError(Msg);
 }
 
 static void reportError(CondBrInst *BI, Function &F) {
@@ -111,11 +138,48 @@ static void convertToSelect(CondBrInst *BI,
     FalseBB->eraseFromParent();
 }
 
+static void checkSecretMemoryAccesses(Function &F) {
+    for (BasicBlock &BB : F) {
+        for (Instruction &I : BB) {
+            if (auto *LI = dyn_cast<LoadInst>(&I)) {
+                if (isSecretValue(LI->getPointerOperand()))
+                    reportMemoryError(LI, F);
+            } else if (auto *SI = dyn_cast<StoreInst>(&I)) {
+                if (isSecretValue(SI->getPointerOperand()))
+                    reportMemoryError(SI, F);
+            }
+            // AtomicRMWInst/AtomicCmpXchgInst also have getPointerOperand()
+            // but are out of scope for this initial implementation.
+        }
+    }
+}
+
+static void checkSecretIndirectControlFlow(Function &F) {
+    for (BasicBlock &BB : F) {
+        for (Instruction &I : BB) {
+            if (auto *IBI = dyn_cast<IndirectBrInst>(&I)) {
+                if (isSecretValue(IBI->getAddress()))
+                    reportIndirectControlFlowError(IBI, F);
+            } else if (auto *CB = dyn_cast<CallBase>(&I)) {
+                // Direct calls have a non-null getCalledFunction(); skip them.
+                // Indirect calls (function pointers) have a null calledFunction
+                // and a potentially secret callee operand.
+                if (CB->getCalledFunction()) continue;
+                if (isSecretValue(CB->getCalledOperand()))
+                    reportIndirectControlFlowError(CB, F);
+            }
+        }
+    }
+}
+
 PreservedAnalyses SecretBranchElimPass::run(Module &M, ModuleAnalysisManager &AM) {
     bool Changed = false;
 
     for (Function &F : M) {
         if (F.isDeclaration()) continue;
+
+        checkSecretMemoryAccesses(F);
+        checkSecretIndirectControlFlow(F);
 
         // Collect first to avoid iterator invalidation during transformation.
         SmallVector<CondBrInst *, 8> SecretBranches;
