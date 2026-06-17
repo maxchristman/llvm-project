@@ -96,6 +96,15 @@ static DecodeStatus DecodeSimpleRegisterClass(MCInst &Inst, uint32_t RegNo,
 constexpr auto DecodeGPRRegisterClass =
     DecodeSimpleRegisterClass<RISCV::X0, 32, /*RVELimit=*/16>;
 
+static DecodeStatus DecodeSecretGPRRegisterClass(MCInst &Inst, uint32_t RegNo,
+                                                  uint64_t Address,
+                                                  const MCDisassembler *) {
+  if (RegNo < 24 || RegNo > 31)
+    return MCDisassembler::Fail;
+  Inst.addOperand(MCOperand::createReg(RISCV::X0 + RegNo));
+  return MCDisassembler::Success;
+}
+
 static DecodeStatus DecodeGPRX1X5RegisterClass(MCInst &Inst, uint32_t RegNo,
                                                uint64_t Address,
                                                const MCDisassembler *Decoder) {

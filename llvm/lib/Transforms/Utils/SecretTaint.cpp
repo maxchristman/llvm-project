@@ -55,7 +55,11 @@ static SecretFuncSummary analyzeFunction(
     SmallPtrSet<Value *, 32> TaintedPtrs;
     SmallPtrSet<Value *, 32> TaintedVals;
 
-    // Seed 1: llvm.var.annotation intrinsics
+    // Seed 1: llvm.var.annotation intrinsics.
+    // Collect then erase: the annotation call takes the alloca's address,
+    // which makes the alloca look "escaped" and blocks mem2reg from promoting
+    // it to SSA.  Once we've seeded from it, the call is no longer needed.
+    SmallVector<CallInst *, 8> AnnotationCalls;
     for (auto &BB : F)
         for (auto &I : BB)
             if (auto *CI = dyn_cast<CallInst>(&I))
@@ -64,7 +68,10 @@ static SecretFuncSummary analyzeFunction(
                     TaintedPtrs.insert(Ptr);
                     errs() << "[SecretTaint] Annotation seed: "
                            << Ptr->getName() << " in " << F.getName() << "\n";
+                    AnnotationCalls.push_back(CI);
                 }
+    for (CallInst *CI : AnnotationCalls)
+        CI->eraseFromParent();
 
     // Seed 2: parameters marked secret by caller
     for (auto &Arg : F.args()) {
