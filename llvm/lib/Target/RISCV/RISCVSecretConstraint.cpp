@@ -1,7 +1,7 @@
 //===-- RISCVSecretConstraint.cpp - Propagate SecretGPR register class ----===//
 //
 // Mojo-V hardware rule: any instruction that reads from a secret register
-// (x16-x31) must also write its result to a secret register.  Placing a
+// (x24-x31) must also write its result to a secret register.  Placing a
 // secret-derived value in a public register is a hardware fault.
 //
 // The SecretRegClass IR pass inserts @llvm.riscv.mojov.secret intrinsics which

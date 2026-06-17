@@ -669,7 +669,11 @@ void RISCVInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
   Align Alignment = MFI.getObjectAlign(FI);
 
   unsigned Opcode;
-  if (RISCV::GPRRegClass.hasSubClassEq(RC)) {
+  if (RISCV::SecretGPRRegClass.hasSubClassEq(RC)) {
+    // SDE encrypts to 128 bits (fast format). The slot size is set to 128 bits
+    // via SecretGPR.SpillSize so the frame allocator reserves the right space.
+    Opcode = RISCV::SDE;
+  } else if (RISCV::GPRRegClass.hasSubClassEq(RC)) {
     Opcode = RegInfo.getRegSizeInBits(RISCV::GPRRegClass) == 32 ? RISCV::SW
                                                                 : RISCV::SD;
   } else if (RISCV::GPRF16RegClass.hasSubClassEq(RC)) {
@@ -761,7 +765,9 @@ void RISCVInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
       Flags & MachineInstr::FrameDestroy ? MBB.findDebugLoc(I) : DebugLoc();
 
   unsigned Opcode;
-  if (RISCV::GPRRegClass.hasSubClassEq(RC)) {
+  if (RISCV::SecretGPRRegClass.hasSubClassEq(RC)) {
+    Opcode = RISCV::LDE;
+  } else if (RISCV::GPRRegClass.hasSubClassEq(RC)) {
     Opcode = RegInfo.getRegSizeInBits(RISCV::GPRRegClass) == 32 ? RISCV::LW
                                                                 : RISCV::LD;
   } else if (RISCV::GPRF16RegClass.hasSubClassEq(RC)) {

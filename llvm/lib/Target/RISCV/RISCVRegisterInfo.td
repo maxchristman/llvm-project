@@ -326,12 +326,17 @@ def YGPR : RegisterClass<"RISCV", [YLenVT], 64,
   let DecoderMethod = "DecodeSimpleRegisterClass<RISCV::X0_Y, 32, /*RVELimit=*/16>";
 }
 
-// Mojo-V secret registers: x16-x31 only. Secret values must live here so
-// the hardware can apply transparent encryption on stores and loads.
-// Allocation order: caller-saved first (a6-a7, t3-t6), then callee-saved (s2-s11).
-def SecretGPR : GPRRegisterClass<(add (sequence "X%u", 16, 17),
-                                      (sequence "X%u", 28, 31),
-                                      (sequence "X%u", 18, 27))>;
+// Mojo-V secret registers: x24-x31 only (spec §5.3). Spike enforces IS_SECREG
+// on SDE/LDE operands and faults for any register outside this range.
+// SDE stores 128 bits (fast format), so spill slots must be 16-byte wide.
+// Allocation order: caller-saved first (t3-t6), then callee-saved (s8-s11).
+def SecretGPRRI : RegInfoByHwMode<
+    [RV32,               RV64],
+    [RegInfo<32,128,128>, RegInfo<64,128,128>]>;
+def SecretGPR : GPRRegisterClass<(add (sequence "X%u", 28, 31),
+                                      (sequence "X%u", 24, 27))> {
+  let RegInfos = SecretGPRRI;
+}
 
 def GPRX0 : GPRRegisterClass<(add X0)>;
 

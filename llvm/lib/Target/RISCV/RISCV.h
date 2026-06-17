@@ -135,6 +135,9 @@ void initializeRISCVVMV0EliminationPass(PassRegistry &);
 FunctionPass *createRISCVSecretConstraintPass();
 void initializeRISCVSecretConstraintPassPass(PassRegistry &);
 
+FunctionPass *createRISCVSecretMemSubstPass();
+void initializeRISCVSecretMemSubstPassPass(PassRegistry &);
+
 void initializeRISCVAsmPrinterPass(PassRegistry &);
 } // namespace llvm
 

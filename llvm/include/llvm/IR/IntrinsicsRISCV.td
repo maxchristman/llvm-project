@@ -2068,7 +2068,7 @@ let TargetPrefix = "riscv" in {
 let TargetPrefix = "riscv" in {
   // Mark an integer value as secret. The compiler lowers this to a
   // COPY_TO_REGCLASS into SecretGPR so the register allocator places the
-  // value in x16-x31, where hardware encryption applies automatically.
+  // value in x24-x31, where hardware encryption applies automatically.
   def int_riscv_mojov_secret : DefaultAttrsIntrinsic<
       [llvm_anyint_ty],
       [LLVMMatchType<0>],

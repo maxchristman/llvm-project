@@ -15,6 +15,9 @@ static bool needsSecretWrap(Instruction &I) {
     if (I.getType()->isVoidTy())        return false;
     if (!I.getType()->isIntegerTy())    return false;
     if (I.isTerminator())               return false;
+    // i128 is the encrypted ciphertext (memory format), not a register value.
+    // SecretGPR only holds i64 plaintext; skip anything wider than 64 bits.
+    if (I.getType()->getIntegerBitWidth() > 64) return false;
 
     // Don't double-wrap an existing @llvm.riscv.mojov.secret call.
     if (auto *CI = dyn_cast<CallInst>(&I))
