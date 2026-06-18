@@ -23,6 +23,7 @@
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
+#include "llvm/IR/Function.h"
 
 using namespace llvm;
 
@@ -58,6 +59,17 @@ bool RISCVSecretConstraintPass::runOnMachineFunction(MachineFunction &MF) {
   const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
   const TargetRegisterClass *SecretRC = &RISCV::SecretGPRRegClass;
 
+  // Mark the function if any VReg is already constrained to SecretGPR (set
+  // by DAG lowering of @llvm.riscv.mojov.secret.i64 → COPY_TO_REGCLASS).
+  // This attribute survives through RA and lets RISCVSecretMemSubstPass
+  // identify secret functions without scanning the (cleared) VReg table.
+  for (unsigned i = 0, e = MRI.getNumVirtRegs(); i != e; ++i) {
+    if (MRI.getRegClass(Register::index2VirtReg(i)) == SecretRC) {
+      MF.getFunction().addFnAttr("mojov-has-secret");
+      break;
+    }
+  }
+
   bool Changed = false;
 
   // Single forward pass; iterate until stable to handle multi-BB chains.
@@ -66,12 +78,15 @@ bool RISCVSecretConstraintPass::runOnMachineFunction(MachineFunction &MF) {
     AnyChange = false;
     for (MachineBasicBlock &MBB : MF) {
       for (MachineInstr &MI : MBB) {
-        // Skip pure copies between register classes — they are the mechanism
-        // that intentionally moves a value between domains.  The only
-        // legitimate secret→public copy is one we emit ourselves; any
-        // unintended ones will be caught when the instruction that produced
-        // the secret-class source is fixed up in a later iteration.
-        if (MI.isCopy() || MI.isImplicitDef() || MI.isPHI())
+        // Skip implicit defs and PHIs — they have no data-flow edge that
+        // requires SecretGPR tightening.
+        //
+        // COPY instructions are NOT skipped: a COPY of a SecretGPR value
+        // (e.g., a trunc that lowers to COPY) must propagate the class so
+        // that RA is forced to allocate the value into X24-X31 and the
+        // downstream store is converted to SDE.
+        // COPY_TO_REGCLASS has a separate opcode and is unaffected by isCopy().
+        if (MI.isImplicitDef() || MI.isPHI())
           continue;
 
         // Check whether any USE operand's virtual register is in SecretGPR.

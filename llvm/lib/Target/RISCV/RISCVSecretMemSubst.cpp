@@ -16,6 +16,7 @@
 #include "RISCV.h"
 #include "RISCVSubtarget.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
+#include "llvm/IR/Function.h"
 
 using namespace llvm;
 
@@ -71,7 +72,23 @@ static bool isLoad(unsigned Opc) {
   return false;
 }
 
+// Returns true if this function was marked by RISCVSecretConstraintPass as
+// containing Mojo-V secret values.  The marker is a function attribute set
+// pre-RA (when VRegs still exist); the post-RA VReg table is cleared so it
+// cannot be inspected here.
+static bool functionHasSecretRegs(const MachineFunction &MF) {
+  return MF.getFunction().hasFnAttribute("mojov-has-secret");
+}
+
 bool RISCVSecretMemSubstPass::runOnMachineFunction(MachineFunction &MF) {
+  // Only substitute SD→SDE / LD→LDE in functions that actually contain
+  // Mojo-V secret values.  In non-secret functions the X24-X31 registers may
+  // be used by the RA for ordinary, non-encrypted data; converting their
+  // stores/loads to SDE/LDE would encrypt non-secret values and cause reads to
+  // return garbage (or trap when secreg_mode is not yet active).
+  if (!functionHasSecretRegs(MF))
+    return false;
+
   const auto &STI = MF.getSubtarget<RISCVSubtarget>();
   const RISCVInstrInfo *TII = STI.getInstrInfo();
 
@@ -82,6 +99,12 @@ bool RISCVSecretMemSubstPass::runOnMachineFunction(MachineFunction &MF) {
       unsigned Opc = MI.getOpcode();
 
       if (isStore(Opc)) {
+        // Skip callee-save prologue saves: storeRegToStackSlot already emits
+        // plain SD for those (VReg-invalid path) because the register holds a
+        // non-secret value.  Replacing them with SDE would require secreg_mode
+        // before Mojo-V is enabled and trigger a trap_security_exception.
+        if (MI.getFlag(MachineInstr::FrameSetup))
+          continue;
         // Store format: rs2 (data, op0), rs1 (base, op1), imm12 (op2).
         Register DataReg = MI.getOperand(0).getReg();
         if (RISCV::SecretGPRRegClass.contains(DataReg)) {
@@ -89,6 +112,9 @@ bool RISCVSecretMemSubstPass::runOnMachineFunction(MachineFunction &MF) {
           Changed = true;
         }
       } else if (isLoad(Opc)) {
+        // Skip callee-save epilogue restores for the same reason.
+        if (MI.getFlag(MachineInstr::FrameDestroy))
+          continue;
         // Load format: rd (def, op0), rs1 (base, op1), imm12 (op2).
         Register DataReg = MI.getOperand(0).getReg();
         if (RISCV::SecretGPRRegClass.contains(DataReg)) {

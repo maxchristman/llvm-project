@@ -670,9 +670,12 @@ void RISCVInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
 
   unsigned Opcode;
   if (RISCV::SecretGPRRegClass.hasSubClassEq(RC)) {
-    // SDE encrypts to 128 bits (fast format). The slot size is set to 128 bits
-    // via SecretGPR.SpillSize so the frame allocator reserves the right space.
-    Opcode = RISCV::SDE;
+    // VReg is invalid for callee-save prologue spills (the physical register
+    // holds a non-secret value the RA placed there, not a Mojo-V secret).
+    // Use plain SD so SDE's secreg_mode requirement isn't triggered before
+    // mojov_enable_and_verify().  RA spills of real secrets (VReg valid) use
+    // SDE so the hardware encrypts the value on the way to memory.
+    Opcode = VReg.isValid() ? RISCV::SDE : RISCV::SD;
   } else if (RISCV::GPRRegClass.hasSubClassEq(RC)) {
     Opcode = RegInfo.getRegSizeInBits(RISCV::GPRRegClass) == 32 ? RISCV::SW
                                                                 : RISCV::SD;
@@ -766,7 +769,9 @@ void RISCVInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
 
   unsigned Opcode;
   if (RISCV::SecretGPRRegClass.hasSubClassEq(RC)) {
-    Opcode = RISCV::LDE;
+    // Mirror the store-side logic: callee-save restores (VReg invalid) must
+    // match plain SD saves; RA reloads of real secrets (VReg valid) use LDE.
+    Opcode = VReg.isValid() ? RISCV::LDE : RISCV::LD;
   } else if (RISCV::GPRRegClass.hasSubClassEq(RC)) {
     Opcode = RegInfo.getRegSizeInBits(RISCV::GPRRegClass) == 32 ? RISCV::LW
                                                                 : RISCV::LD;

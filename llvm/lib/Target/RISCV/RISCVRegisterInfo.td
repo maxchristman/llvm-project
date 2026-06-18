@@ -308,12 +308,26 @@ class GPRRegisterClass<dag regList>
 
 // The order of registers represents the preferred allocation sequence.
 // Registers are listed in the order caller-save, callee-save, specials.
+// X24-X31 (s8-s11/t3-t6) are listed to keep SecretGPR ⊂ GPR for
+// getCommonSubClass, but RA never allocates them for GPR VRegs (AltOrderSelect
+// always returns 1 to use the restricted order).
 def GPR : GPRRegisterClass<(add (sequence "X%u", 10, 17),
                                 (sequence "X%u", 5, 7),
                                 (sequence "X%u", 28, 31),
                                 (sequence "X%u", 8, 9),
                                 (sequence "X%u", 18, 27),
-                                (sequence "X%u", 0, 4))>;
+                                (sequence "X%u", 0, 4))> {
+  // Mojo-V: SD/SB/SW/SH with rs2 in X24-X31 traps when secreg_mode is on.
+  // RA must never assign GPR VRegs to X24-X31; only SecretGPR VRegs use them.
+  // The default order above is kept for class-membership so that
+  // getCommonSubClass(GPR, SecretGPR) == SecretGPR continues to work.
+  let AltOrders = [(add (sequence "X%u", 10, 17),
+                        (sequence "X%u", 5, 7),
+                        (sequence "X%u", 8, 9),
+                        (sequence "X%u", 18, 23),
+                        (sequence "X%u", 0, 4))];
+  let AltOrderSelect = [{ (void)MF; return 1; }];
+}
 
 def YGPR : RegisterClass<"RISCV", [YLenVT], 64,
                          (add (sequence "X%u_Y", 10, 17),
